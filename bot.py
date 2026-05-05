@@ -6,11 +6,13 @@ import feedparser
 import httpx
 from datetime import datetime, timezone
 from pathlib import Path
+import time
 from deep_translator import GoogleTranslator
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 SEEN_FILE = Path("seen.json")
+MAX_AGE_HOURS = 25  # игнорировать записи старше этого порога
 
 FEEDS = [
     # OpenAI
@@ -86,10 +88,18 @@ def send_message(text: str) -> None:
     }, timeout=10)
 
 
+def is_recent(entry) -> bool:
+    t = getattr(entry, "published_parsed", None) or getattr(entry, "updated_parsed", None)
+    if t is None:
+        return True  # нет даты — пропускаем фильтр
+    age_hours = (time.time() - time.mktime(t)) / 3600
+    return age_hours <= MAX_AGE_HOURS
+
+
 def fetch_feed(source: str, url: str) -> list[tuple[str, object]]:
     try:
         feed = feedparser.parse(url)
-        return [(source, e) for e in feed.entries]
+        return [(source, e) for e in feed.entries if is_recent(e)]
     except Exception as e:
         print(f"[{source}] fetch error: {e}")
         return []
