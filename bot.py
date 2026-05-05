@@ -1,10 +1,12 @@
 import os
 import json
 import hashlib
+import re
 import feedparser
 import httpx
 from datetime import datetime, timezone
 from pathlib import Path
+from deep_translator import GoogleTranslator
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
@@ -47,16 +49,26 @@ def entry_id(entry) -> str:
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
+def translate(text: str) -> str:
+    if not text:
+        return text
+    try:
+        return GoogleTranslator(source="auto", target="ru").translate(text[:4500])
+    except Exception:
+        return text
+
+
 def format_message(source: str, entry) -> str:
     title = getattr(entry, "title", "No title").strip()
     link = getattr(entry, "link", "")
     summary = getattr(entry, "summary", "")
 
-    # Strip HTML tags from summary
-    import re
     summary = re.sub(r"<[^>]+>", "", summary or "").strip()
     if len(summary) > 280:
         summary = summary[:277] + "..."
+
+    title = translate(title)
+    summary = translate(summary)
 
     lines = [f"📰 *{source}*", f"[{title}]({link})"]
     if summary:
